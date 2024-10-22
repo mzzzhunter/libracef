@@ -1,0 +1,8 @@
+*
+!/.gitignore
+!/ 
+!.gitattributes
+*.spec
+LICENSE
+*.ico
+*.jpg
