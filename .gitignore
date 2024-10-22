@@ -1,6 +1,6 @@
 *
-!/.gitignore
-!/ 
+.gitignore
+!/.py
 !.gitattributes
 *.spec
 LICENSE
