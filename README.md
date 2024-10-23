@@ -7,7 +7,6 @@
 * [Running the Application](#running-the-application)
 * [Usage](#usage)
 * [Troubleshooting](#troubleshooting)
-* [License](#license)
 
 ## Running the Application
 
@@ -19,9 +18,18 @@
 3. Run the binary using libracef.exe.
 
 ### Method 2: Run the python code
-1. pip
+1. git clone `https://github.com/mzzzhunter/libracef.git` or download the source code zip files.
 
-# Usage:
+1. Install dependencies
+```bash
+pip install -r requirements.txt 
+```
+
+2. Run libracef.py
+```bash
+python libracef.py
+```
+## Usage:
 
 ### To use the application, follow these steps:
 
@@ -30,7 +38,8 @@
 2. Perform unkonwn analysis of your samples.
 
 3. Export the Best Hit Results to CEF files by go to menu bar Tools->Run Script. Select `ExportCEFFile-AllBestHits-WithRI.Unknowns.script`.
-
+![alt text](image-3.png)
+![alt text](image-4.png)
 4. Run `libracef.exe`. 
 
 5. Click File->Import CEF results
@@ -49,6 +58,3 @@
 8. Export to Agilent MSLibrary XML by select Export->Export to MSLibrary XML
 
 ![alt text](image-2.png)
-
-
-
