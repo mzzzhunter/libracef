@@ -1,2 +1,4 @@
 .gitignore
 *.spec
+/dist
+/build
