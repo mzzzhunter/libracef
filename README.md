@@ -1,6 +1,7 @@
 # Libracef: A Tool for Building Agilent Library Files from .cef Files of Mass Hunter Unknown Analysis.
 
-
+## Introduction
+Libracef is a software tool that builds Agilent library files from .cef files of Mass Hunter unknown analysis. This tool is designed to simplify the process of creating library files for use in Agilent's Mass Hunter software.
 
 ## Table of Contents
 
@@ -10,7 +11,7 @@
 
 ## Running the Application
 
-### Methond 1: Running using Binary
+### Methond 1: Run using Binary
 1. Download the zip file from the releases page. https://github.com/mzzzhunter/libracef/releases
 
 2. Extract the binary to your preferred location.
@@ -33,7 +34,7 @@ python libracef.py
 
 ### To use the application, follow these steps:
 
-1. Add the `Scripts\ExportCEFFile-AllBestHits-WithRI.Unknowns.script` file to the Mass Hunter Unknown Script folder. e.g. `C:\MassHunter\Scripts\Unkowns\Actions`
+1. Copy the `Scripts\ExportCEFFile-AllBestHits-WithRI.Unknowns.script` file to the Mass Hunter Unknown Script folder. e.g. `C:\MassHunter\Scripts\Unkowns\Actions`
 
 2. Perform unkonwn analysis of your samples.
 
