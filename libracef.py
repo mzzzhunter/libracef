@@ -142,11 +142,11 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.df = None
-        self.nist_path = None
         self.bar_width_percent = 0.5  # Default bar width as 0.5% of canvas width
         self.setWindowIcon(QIcon('libracef_icon.jpg'))
         self.initUI()
         self.curent_csv_file = None
+        self.nist_path = self.find_nist_ms_search_default_paths()
 
     def initUI(self):
         self.setWindowTitle('LibraCEF - Build MS library from CEFs')
@@ -589,6 +589,22 @@ class MainWindow(QMainWindow):
         base_title = "LibraCEF"
         file_name = os.path.basename(file_name)
         self.setWindowTitle(f"{base_title} - {file_name}")
+
+    def find_nist_ms_search_default_paths(self):
+        possible_paths = [
+            r"C:\NISTMS",
+            r"C:\NIST11",
+            r"C:\NIST14",
+            r"C:\NIST17",
+            r"C:\NIST20",
+            r"c:\NIST23",
+            r"C:\Program Files\NISTMS",
+            r"C:\Program Files (x86)\NISTMS"
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                return path+"\\MSSEARCH"
+        return None
 def main():
     app = QApplication(sys.argv)
     main_window = MainWindow()
