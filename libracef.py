@@ -11,6 +11,7 @@ from export_util import create_jcamp_library, create_mslibrary_xml
 from cef_util import combine_cef_results
 import ast
 import os
+from pathlib import Path
 
 class PandasModel(QAbstractTableModel):
     def __init__(self, data):
@@ -141,6 +142,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.df = None
+        self.nist_path = None
         self.bar_width_percent = 0.5  # Default bar width as 0.5% of canvas width
         self.setWindowIcon(QIcon('libracef_icon.jpg'))
         self.initUI()
@@ -219,6 +221,11 @@ class MainWindow(QMainWindow):
         set_bar_width_action = QAction('Set Bar Width', self)
         set_bar_width_action.triggered.connect(self.set_bar_width)
         settings_menu.addAction(set_bar_width_action)
+
+        # Add action to set NIST path
+        set_nist_path_action = QAction('Set NIST MS Search Path', self)
+        set_nist_path_action.triggered.connect(self.set_nist_path)
+        settings_menu.addAction(set_nist_path_action)
 
         # Add Edit menu
         edit_menu = menubar.addMenu('Edit')
@@ -401,9 +408,16 @@ class MainWindow(QMainWindow):
     def search_nist(self, row):
         if self.df is None:
             return
-
-        df_row = self.df.iloc[row]
-        search_nist_for_spectrum(df_row)
+        if self.nist_path:
+            current_path = Path(os.path.abspath(os.getcwd()))
+            spec_data_path = current_path / 'spectrum.txt' # add spectrum file to the path
+            df_row = self.df.iloc[row]
+            
+            search_nist_for_spectrum(df_row, spec_data_path=str(spec_data_path), nist_path=str(self.nist_path))
+        else:            
+            QMessageBox.warning(self, 'NIST MS Search path not defined', 
+                             'Please define the NIST MS Search path in the Settings before searching.')
+            
 
     def export_to_csv(self):
         if self.df is None:
@@ -453,6 +467,24 @@ class MainWindow(QMainWindow):
             current_row = self.table.currentIndex().row()
             if current_row >= 0:
                 self.plot_spectrum(current_row)
+
+    def set_nist_path(self):
+    # Open a file dialog to select the NIST folder
+        nist_path = QFileDialog.getExistingDirectory(self, 'Select NIST MS Search Folder')
+        if nist_path:
+            # Save the NIST path to a config file or a variable
+            # Use pathlib to make the path compatible for different OS
+            nist_path = Path(nist_path)
+
+            # Check if nistms$.exe exist in the folder
+            file_path = nist_path / 'nistms$.exe'
+            if file_path.is_file():
+                self.nist_path = nist_path
+            else:
+                QMessageBox.warning(self, "NIST MS Search Path Error", "Cannot find nistms$.exe")
+
+
+
 
     def add_column(self):
         if self.df is not None:

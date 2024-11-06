@@ -1,5 +1,6 @@
 import ast
 import subprocess
+import pathlib
 # NIST search
 def format_ms_peaks_for_nist(peaks):
     if type(peaks) == str:
@@ -17,8 +18,8 @@ def create_spectrum_file(df_row, filename):
         f.writelines(lines)
     return filename
 
-def get_autoimp_path(nist_path="c:\\NIST14\\MSSEARCH\\"):
-    with open(nist_path+"AUTOIMP.MSD") as f:
+def get_autoimp_path(nist_path):
+    with open(nist_path+"\\AUTOIMP.MSD") as f:
         path = f.readline()
     return path.strip()
 
@@ -27,12 +28,13 @@ def update_filespec(filespec_path, data_path):
         f.write(data_path + '\n10 724')
 
 
-def search_nist_for_spectrum(df_row, spec_data_path='c:\\NIST14\\MSSEARCH\\datafile.txt', nist_path=r"C:\NIST14\MSSEARCH\nistms$.exe"):
+def search_nist_for_spectrum(df_row, spec_data_path, nist_path):
+
     spec_data_file = create_spectrum_file(df_row, spec_data_path)
-    filespec_path = get_autoimp_path()
+    filespec_path = get_autoimp_path(nist_path)
     update_filespec(filespec_path, spec_data_file)
     cmd = [
-        nist_path,
+        nist_path+"\\nistms$.exe",
         "/INSTRUMENT"
     ]
     try:

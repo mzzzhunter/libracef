@@ -114,32 +114,24 @@ def combine_cef_results(directory, rt_tolerance=0.1, group_similarity_threshold=
     df['Similarity_to_Next'] = df['Similarity_to_Next'].fillna(0)
     # Add a 'group' column and assign group numbers
     df['group'] = 0
-    current_group = 1
-    
-    for i in range(len(df)):
-        if i == 0:
-            df.iloc[i, df.columns.get_loc('group')] = current_group
+    group_id = 1
+
+    # Assign the first row to the first group
+    df.at[0, 'group'] = group_id
+
+    for i in range(1, len(df)):
+    # Since next_similarity of previous row == prev_similarity of current row,
+    # we check if this shared similarity exceeds the threshold
+        shared_similarity = df.iloc[i]['Similarity_to_Previous']  # or df.at[i - 1, 'next_similarity']
+
+        if shared_similarity > group_similarity_threshold:
+            # Assign the current row to the same group as the previous row
+            df.iloc[i, df.columns.get_loc('group')] = group_id
         else:
-            prev_similarity = df.iloc[i]['Similarity_to_Previous']
-            next_similarity = df.iloc[i]['Similarity_to_Next']
-            
-            if (prev_similarity is not None and prev_similarity > group_similarity_threshold) or (next_similarity is not None and next_similarity > group_similarity_threshold):
-                if i > 0 and df.iloc[i-1]['group'] != 0:
-                    df.iloc[i, df.columns.get_loc('group')] = df.iloc[i-1]['group']
-                else:
-                    df.iloc[i, df.columns.get_loc('group')] = current_group
-            else:
-                current_group += 1
-                df.iloc[i, df.columns.get_loc('group')] = current_group
-    
-    # Clean up any remaining ungrouped rows
-    for i in range(len(df)):
-        if df.iloc[i]['group'] == 0:
-            current_group += 1
-            df.iloc[i, df.columns.get_loc('group')] = current_group
-    
-    # Ensure 'group' is included in the column order
-    # column_order.insert(-1, 'group')  # Insert 'group' before the last column ('File')
+            # Start a new group
+            group_id += 1
+            df.iloc[i, df.columns.get_loc('group')] = group_id
+
     df['RI Ref'] = ''
     # Reorder columns
     column_order = ['Chemical_Name', 'Formula', 'RT', 'RI', 'RI Ref', 'CAS_Number', 'group', 'Similarity_to_Previous', 'Similarity_to_Next', 'MS_Peaks', 'File']
