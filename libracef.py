@@ -591,20 +591,23 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{base_title} - {file_name}")
 
     def find_nist_ms_search_default_paths(self):
-        possible_paths = [
-            r"C:\NISTMS",
-            r"C:\NIST11",
-            r"C:\NIST14",
-            r"C:\NIST17",
-            r"C:\NIST20",
-            r"c:\NIST23",
-            r"C:\Program Files\NISTMS",
-            r"C:\Program Files (x86)\NISTMS"
-        ]
-        for path in possible_paths:
-            if os.path.exists(path):
-                return path+"\\MSSEARCH"
-        return None
+
+        windir = os.getenv("windir")
+        if not windir:
+            return None
+
+        win_ini_path = os.path.join(windir, "win.ini")
+        if not os.path.exists(win_ini_path):
+            return None
+        
+        path32_value = None
+        with open(win_ini_path, 'r') as file:
+            for line in file:
+                if line.strip().lower().startswith("path32="): 
+                    path32_value = line.split("=", 1)[1].strip()
+                    
+        return path32_value            
+
 def main():
     app = QApplication(sys.argv)
     main_window = MainWindow()
