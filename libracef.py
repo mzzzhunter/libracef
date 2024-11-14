@@ -1,7 +1,7 @@
 import sys
 import pandas as pd
 import matplotlib.pyplot as plt
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QVBoxLayout, QWidget, QFileDialog, QMenu, QMessageBox, QHBoxLayout, QAction, QSplitter, QInputDialog, QHeaderView, QDialog, QLabel, QDoubleSpinBox, QDialogButtonBox, QLineEdit, QPushButton, QListWidget, QComboBox
 from PyQt5.QtCore import Qt, QAbstractTableModel
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -147,6 +147,7 @@ class MainWindow(QMainWindow):
         self.initUI()
         self.curent_csv_file = None
         self.nist_path = self.find_nist_ms_search_default_paths()
+        self.undo_stack = []
 
     def initUI(self):
         self.setWindowTitle('LibraCEF - Build MS library from CEFs')
@@ -229,6 +230,14 @@ class MainWindow(QMainWindow):
 
         # Add Edit menu
         edit_menu = menubar.addMenu('Edit')
+        ## Add an undo action
+        undo_action = QAction("Undo", self)
+        undo_action.triggered.connect(self.undo_changes)
+        edit_menu.addAction(undo_action)
+
+        ## Add a shortcut to the undo action
+        undo_action.setShortcut(QKeySequence.Undo)
+
         table_menu = edit_menu.addMenu('Table')
         add_column_action = QAction('Add Column', self)
         add_column_action.triggered.connect(self.add_column)
@@ -291,12 +300,16 @@ class MainWindow(QMainWindow):
         if dialog.exec_():
             directory, rt_tolerance, group_similarity_threshold, exclude_elements = dialog.get_values()
             if directory:
-                self.df = combine_cef_results(directory, rt_tolerance=rt_tolerance, 
-                                              group_similarity_threshold=group_similarity_threshold,
-                                              exclude_elements=exclude_elements)
-                self.update_table()
-                # self.import_save_action.setEnabled(True)
-                self.export_csv_action.setEnabled(True)
+                try:
+                    self.df = combine_cef_results(directory, rt_tolerance=rt_tolerance, 
+                                                group_similarity_threshold=group_similarity_threshold,
+                                                exclude_elements=exclude_elements)
+                    self.update_table()
+                    # self.import_save_action.setEnabled(True)
+                    self.export_csv_action.setEnabled(True)
+                except:
+                    QMessageBox.warning(self, "Import Error", "Error when import CEF files.")
+
             else:
                 QMessageBox.warning(self, "Import Error", "Please select a valid directory.")
 
@@ -400,9 +413,16 @@ class MainWindow(QMainWindow):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
+            undo_state = self.df.copy()
+            self.undo_stack.append(undo_state)
             for row in selected_rows:
                 self.df = self.df.drop(self.df.index[row])
             self.df = self.df.reset_index(drop=True)
+            self.update_table()
+
+    def undo_changes(self):
+        if self.undo_stack:
+            self.df = self.undo_stack.pop()
             self.update_table()
 
     def search_nist(self, row):
