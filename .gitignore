@@ -3,3 +3,4 @@
 /dist
 /build
 compile.txt
+*.csv
