@@ -59,3 +59,12 @@ python libracef.py
 8. Export to Agilent MSLibrary XML by select Export->Export to MSLibrary XML
 
 ![alt text](image-2.png)
+
+
+### YouTube Tutorial
+
+To learn more about using Libracef, check out our YouTube tutorial:
+
+[Libracef Tutorial: Creating Agilent Library Files from .cef Files](https://youtu.be/fzfVQkmO0Xo?si=tVZp5UxGu2W4Ki65)
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/fzfVQkmO0Xo/0.jpg)](https://youtu.be/fzfVQkmO0Xo?si=tVZp5UxGu2W4Ki65)
