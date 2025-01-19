@@ -4,3 +4,4 @@
 /build
 compile.txt
 *.csv
+pyqt5mime.py

@@ -2,7 +2,7 @@ import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 from PyQt5.QtGui import QIcon, QKeySequence
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QVBoxLayout, QWidget, QFileDialog, QMenu, QMessageBox, QHBoxLayout, QAction, QSplitter, QInputDialog, QHeaderView, QDialog, QLabel, QDoubleSpinBox, QDialogButtonBox, QLineEdit, QPushButton, QListWidget, QComboBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QVBoxLayout, QWidget, QFileDialog, QMenu, QMessageBox, QHBoxLayout, QAction, QSplitter, QInputDialog, QHeaderView, QDialog, QLabel, QDoubleSpinBox, QDialogButtonBox, QLineEdit, QPushButton, QListWidget, QComboBox, QTableWidget, QTableWidgetItem
 from PyQt5.QtCore import Qt, QAbstractTableModel
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -325,17 +325,20 @@ class MainWindow(QMainWindow):
         context = QMenu(self)
         # show_spectrum_action = context.addAction("Show Spectrum")
         search_nist_action = context.addAction("Search NIST")
-        delete_rows_action = context.addAction("Delete Selected Rows")        
+        insert_row_action = context.addAction("Insert Row")
+        delete_rows_action = context.addAction("Delete Selected Rows")
+        modify_ms_spectrum_action = context.addAction("Modify MS spectrum")       
         action = context.exec_(self.table.mapToGlobal(pos))
         
-        # if action == show_spectrum_action:
-        #     index = self.table.indexAt(pos)
-        #     self.plot_spectrum(index.row())
+        index = self.table.indexAt(pos)
         if action == delete_rows_action:
             self.delete_selected_rows()
-        elif action == search_nist_action:
-            index = self.table.indexAt(pos)
+        elif action == search_nist_action:            
             self.search_nist(index.row())
+        elif action == insert_row_action:
+            self.insert_row(index.row())
+        elif action == modify_ms_spectrum_action:
+            self.modify_ms_spectrum(index.row())
 
     def show_header_context_menu(self, pos):
         context = QMenu(self)
@@ -397,6 +400,17 @@ class MainWindow(QMainWindow):
         for mz, intensity in zip(mz, intensity):
             self.canvas.axes.text(mz + bar_width/2., intensity + label_offset, f'{round(mz)}', ha='center', va='bottom', rotation=90, fontsize=8)      
         self.canvas.draw()
+
+    def insert_row(self, selected_row):
+        # Append Undo stack
+        undo_state = self.df.copy()
+        self.undo_stack.append(undo_state)
+        
+        new_row =  self.df.iloc[selected_row].copy()
+        new_row['Chemical_Name'] = "New Compound"
+        self.df = pd.concat([self.df.iloc[:selected_row], pd.DataFrame([new_row]), self.df.iloc[selected_row:]]).reset_index(drop=True)
+        self.update_table()
+
 
     def delete_selected_rows(self):
         if self.df is None:
@@ -503,27 +517,22 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "NIST MS Search Path Error", "Cannot find nistms$.exe")
 
-
-
-
     def add_column(self):
-        if self.df is not None:
-            column_name, ok = QInputDialog.getText(self, "Add Column", "Enter new column name:")
-            if ok and column_name:
-                self.df[column_name] = None
-                self.update_table()
-        else:
-            QMessageBox.warning(self, "Add Column Error", "Please import or create a data frame first.")
+        if not self._check_df_exists():
+            return
+        column_name, ok = QInputDialog.getText(self, "Add Column", "Enter new column name:")
+        if ok and column_name:
+            self.df[column_name] = None
+            self.update_table()
 
     def remove_column(self):
-        if self.df is not None:
-            column_names = list(self.df.columns)
-            column_name, ok = QInputDialog.getItem(self, "Remove Column", "Select a column to remove:", column_names, 0, False)
-            if ok and column_name:
-                self.df = self.df.drop(columns=[column_name])
-                self.update_table()
-        else:
-            QMessageBox.warning(self, "Remove Column Error", "Please import or create a data frame first.")
+        if not self._check_df_exists():
+            return
+        column_names = list(self.df.columns)
+        column_name, ok = QInputDialog.getItem(self, "Remove Column", "Select a column to remove:", column_names, 0, False)
+        if ok and column_name:
+            self.df = self.df.drop(columns=[column_name])
+            self.update_table()
 
     def rearrange_columns(self):
         if self.df is not None:
@@ -589,6 +598,7 @@ class MainWindow(QMainWindow):
             rearrange_dialog.exec_()
         else:
             QMessageBox.warning(self, "Rearrange Columns Error", "Please import or create a data frame first.")
+
     # Create a function to sort the table by column and order
     def sort_by_column(self):
         if self.df is not None:
@@ -601,6 +611,75 @@ class MainWindow(QMainWindow):
                 # # Example: show the number of rows and columns in the status bar
                 # rows, cols = self.df.shape
                 # self.status_label.setText(f"DataFrame updated: {rows} rows, {cols} columns")
+
+
+    def modify_ms_spectrum(self, selected_row):
+        
+        if selected_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a row to modify.")
+            return
+
+        ms_peaks = self.df.at[selected_row, 'MS_Peaks']
+
+        # Check if MS_Peaks is a string and convert it to a list if necessary 
+        if isinstance(ms_peaks, str):
+            try:
+                ms_peaks = ast.literal_eval(ms_peaks)
+            except:
+                QMessageBox.warning(self, "Plot Error", "Unable to parse MS_Peaks data.")
+                return     
+               
+        if not isinstance(ms_peaks, list):
+            ms_peaks = []
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Modify MS Spectrum")
+        layout = QVBoxLayout(dialog)
+
+        table = QTableWidget(dialog)
+        table.setColumnCount(2)
+        table.setHorizontalHeaderLabels(["m/z", "Intensity"])
+        table.setRowCount(len(ms_peaks))
+
+        for i, peak in enumerate(ms_peaks):
+            table.setItem(i, 0, QTableWidgetItem(str(peak[0])))
+            table.setItem(i, 1, QTableWidgetItem(str(peak[1])))
+
+        add_button = QPushButton("Add Row", dialog)
+        remove_button = QPushButton("Remove Row", dialog)
+        save_button = QPushButton("Save", dialog)
+
+        def add_row():
+            table.insertRow(table.rowCount())
+
+        def remove_row():
+            if table.rowCount() > 0:
+                table.removeRow(table.currentRow())
+
+        def save_changes():
+            new_ms_peaks = []
+            for row in range(table.rowCount()):
+                mz_item = table.item(row, 0)
+                intensity_item = table.item(row, 1)
+                if mz_item and intensity_item:
+                    mz = float(mz_item.text())
+                    intensity = float(intensity_item.text())
+                    new_ms_peaks.append((mz, intensity))
+            self.df.at[selected_row, 'MS_Peaks'] = new_ms_peaks
+            self.plot_spectrum(selected_row)
+            dialog.accept()
+
+        add_button.clicked.connect(add_row)
+        remove_button.clicked.connect(remove_row)
+        save_button.clicked.connect(save_changes)
+
+        layout.addWidget(table)
+        layout.addWidget(add_button)
+        layout.addWidget(remove_button)
+        layout.addWidget(save_button)
+
+        dialog.setLayout(layout)
+        dialog.exec()
 
     def show_about(self):
         QMessageBox.about(self, "About", "LibraCEF v0.1\n\nAuthor: Tony Chen\n\nhttps://github.com/mzzzhunter/libracef\n\nLicense: MIT License")
@@ -626,13 +705,18 @@ class MainWindow(QMainWindow):
                 if line.strip().lower().startswith("path32="): 
                     path32_value = line.split("=", 1)[1].strip()
                     
-        return path32_value            
+        return path32_value
+    def _check_df_exists(self):
+        if self.df is None:
+            QMessageBox.warning(self, "Error", "Please import or create a data frame first.")
+            return False
+        return True
 
 def main():
     app = QApplication(sys.argv)
     main_window = MainWindow()
     main_window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 if __name__ == '__main__':
     main()
