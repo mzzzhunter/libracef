@@ -13,6 +13,8 @@ import ast
 import os
 from pathlib import Path
 
+version = "0.2"
+
 class PandasModel(QAbstractTableModel):
     def __init__(self, data):
         QAbstractTableModel.__init__(self)
@@ -682,7 +684,7 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def show_about(self):
-        QMessageBox.about(self, "About", "LibraCEF v0.1\n\nAuthor: Tony Chen\n\nhttps://github.com/mzzzhunter/libracef\n\nLicense: MIT License")
+        QMessageBox.about(self, "About", f"LibraCEF v{version}\n\nAuthor: Tony Chen\n\nhttps://github.com/mzzzhunter/libracef\n\nLicense: MIT License")
 
     def set_window_title(self, file_name):
         base_title = "LibraCEF"
