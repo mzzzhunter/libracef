@@ -2,7 +2,8 @@
 *.spec
 /dist
 /build
-compile.txt
+*.txt
 *.csv
 *.ipynb
 pyqt5mime.py
+!requirements.txt
