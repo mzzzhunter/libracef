@@ -69,5 +69,5 @@ To learn more about using Libracef, check out our YouTube tutorial:
 
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/fzfVQkmO0Xo/0.jpg)](https://youtu.be/fzfVQkmO0Xo?si=tVZp5UxGu2W4Ki65)
 
-![image](https://github.com/user-attachments/assets/ce7c0a5e-376b-45fb-9321-ac4f020b1f83)
+[![DOI](https://zenodo.org/badge/863261828.svg)](https://doi.org/10.5281/zenodo.14791325)
 
