@@ -32,7 +32,8 @@ def parse_cef_file(file_path):
         if location_node is not None:
             compound_data['RT'] = float(location_node.get('rt'))
             compound_data['RI'] = float(location_node.get('ri', 0))  # Default to 0 if 'ri' is not present
-        
+            compound_data['MaxArea'] = float(location_node.get('a', 0))  # Default to 0 if 'area' is not present
+
         # Capture mass spectrum from MSPeaks node under Spectrum node
         spectrum_node = compound.find('.//Spectrum')
         if spectrum_node is not None:
@@ -72,11 +73,24 @@ def combine_cef_results(directory, rt_tolerance=0.1, group_similarity_threshold=
             previous = sorted_list[i - 1]
             
             # Check if the current peak is not a duplicate based on name and RT difference
-            if current['Chemical_Name'] != previous['Chemical_Name'] or abs(current['RT'] - previous['RT']) >= 0.1:
-                # It's not a duplicate or it has a significant RT difference
+            if current['Chemical_Name'] != previous['Chemical_Name'] or abs(current['RT'] - previous['RT']) >= rt_tolerance:
+                # It's not a duplicate or it has RT difference greater than the tolerance
                 unique_compounds.append(current)
 
-    # Step 3: Rename duplicates with more than 0.1 RT difference
+            # If it is a duplicate based on name and RT difference
+            elif current['Chemical_Name'] == previous['Chemical_Name']:
+                # Update MaxArea, MS_Peaks, and File if MaxArea is greater
+                if current['MaxArea'] > previous['MaxArea']:
+                    previous['MaxArea'] = current['MaxArea']
+                    previous['MS_Peaks'] = current['MS_Peaks']
+                    previous['File'] = current['File']
+                    previous['RT'] = current['RT']
+                    previous['RI'] = current['RI']
+                # If the current peak is a duplicate, we skip adding it to unique_compounds
+                continue
+
+    # Step 3: Rename duplicates with "peak" suffix
+    # Create a new list to hold renamed compounds
     renamed_dicts = []
     peak_counts = {}  # To keep track of peak counts for renaming
 
@@ -134,7 +148,7 @@ def combine_cef_results(directory, rt_tolerance=0.1, group_similarity_threshold=
 
     df['RI Ref'] = ''
     # Reorder columns
-    column_order = ['Chemical_Name', 'Formula', 'RT', 'RI', 'RI Ref', 'CAS_Number', 'group', 'Similarity_to_Previous', 'Similarity_to_Next', 'MS_Peaks', 'File']
+    column_order = ['Chemical_Name', 'Formula', 'RT', 'RI', 'RI Ref', 'CAS_Number', 'group', 'Similarity_to_Previous', 'Similarity_to_Next', 'MS_Peaks', 'File','MaxArea']
     df = df[column_order]
     
     return df
