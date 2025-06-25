@@ -13,7 +13,7 @@ import ast
 import os
 from pathlib import Path
 
-version = "0.2"
+version = "0.3"
 
 class PandasModel(QAbstractTableModel):
     def __init__(self, data):
