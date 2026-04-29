@@ -10,43 +10,46 @@ def parse_cef_file(file_path):
 
     compounds = []
     for compound in root.findall('.//Compound'):
-        compound_data = {}
-        
-        # Find the chemical name and formula in the attributes under Molecule node under Results node
-        results_node = compound.find('.//Results')
-        if results_node is not None:
-            molecule_node = results_node.find('.//Molecule')
-            if molecule_node is not None:
-                compound_data['Chemical_Name'] = molecule_node.get('name')
-                compound_data['Formula'] = molecule_node.get('formula')
-                
-                # Get CAS number from Accession node under Database node under Molecule node
-                database_node = molecule_node.find('.//Database')
-                if database_node is not None:
-                    accession_node = database_node.find('.//Accession')
-                    if accession_node is not None:
-                        compound_data['CAS_Number'] = accession_node.get('id')
-        
-        # Find RT and RI in attributes in location node under Compound node
+        # Shared peak-level data: a single physical peak may carry multiple
+        # candidate identifications as sibling <Molecule> nodes.
+        shared = {'File': os.path.basename(file_path)}
+
         location_node = compound.find('.//Location')
         if location_node is not None:
-            compound_data['RT'] = float(location_node.get('rt'))
-            compound_data['RI'] = float(location_node.get('ri', 0))  # Default to 0 if 'ri' is not present
-            compound_data['MaxArea'] = float(location_node.get('a', 0))  # Default to 0 if 'area' is not present
+            shared['RT'] = float(location_node.get('rt'))
+            shared['RI'] = float(location_node.get('ri', 0))
+            shared['MaxArea'] = float(location_node.get('a', 0))
 
-        # Capture mass spectrum from MSPeaks node under Spectrum node
         spectrum_node = compound.find('.//Spectrum')
         if spectrum_node is not None:
             ms_peaks = spectrum_node.find('.//MSPeaks')
             if ms_peaks is not None:
-                peaks = []
-                for peak in ms_peaks.findall('.//p'):
-                    peaks.append((round(float(peak.get('x'))), float(peak.get('y'))))
-                compound_data['MS_Peaks'] = peaks
+                shared['MS_Peaks'] = [
+                    (round(float(peak.get('x'))), float(peak.get('y')))
+                    for peak in ms_peaks.findall('.//p')
+                ]
 
-        
-        compound_data['File'] = os.path.basename(file_path)  # Add filename to track source
-        compounds.append(compound_data)
+        results_node = compound.find('.//Results')
+        molecule_nodes = (
+            results_node.findall('.//Molecule') if results_node is not None else []
+        )
+
+        if not molecule_nodes:
+            compounds.append(dict(shared))
+            continue
+
+        for molecule_node in molecule_nodes:
+            compound_data = dict(shared)
+            compound_data['Chemical_Name'] = molecule_node.get('name')
+            compound_data['Formula'] = molecule_node.get('formula')
+
+            database_node = molecule_node.find('.//Database')
+            if database_node is not None:
+                accession_node = database_node.find('.//Accession')
+                if accession_node is not None:
+                    compound_data['CAS_Number'] = accession_node.get('id')
+
+            compounds.append(compound_data)
 
     return compounds
 
