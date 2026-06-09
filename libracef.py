@@ -6,14 +6,14 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QVBoxLayout, 
 from PyQt5.QtCore import Qt, QAbstractTableModel
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from nist_util import search_nist_for_spectrum
+from nist_util import check_autoimp_writable, search_nist_for_spectrum
 from export_util import create_jcamp_library, create_mslibrary_xml
 from cef_util import combine_cef_results
 import ast
 import os
 from pathlib import Path
 
-version = "0.3"
+version = "0.4"
 
 class PandasModel(QAbstractTableModel):
     def __init__(self, data):
@@ -115,6 +115,82 @@ class CEFImportDialog(QDialog):
         exclude_elements = [elem.strip() for elem in self.exclude_element_input.text().split(',')]
         return (self.dir_input.text(), self.rt_tolerance_input.value(),
                 self.group_similarity_threshold_input.value(), exclude_elements)
+
+class NISTPathDialog(QDialog):
+    def __init__(self, current_path=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Set NIST MS Search Path")
+
+        layout = QVBoxLayout(self)
+        path_layout = QHBoxLayout()
+        path_layout.addWidget(QLabel("NIST MS Search folder:"))
+
+        self.path_input = QLineEdit()
+        if current_path:
+            self.path_input.setText(str(current_path))
+        path_layout.addWidget(self.path_input)
+
+        browse_button = QPushButton("Browse")
+        browse_button.clicked.connect(self.browse_directory)
+        path_layout.addWidget(browse_button)
+        layout.addLayout(path_layout)
+
+        check_button = QPushButton("Check NIST")
+        check_button.clicked.connect(lambda: self.check_nist(show_success=True))
+        layout.addWidget(check_button)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        buttons.accepted.connect(self.accept_if_valid)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def browse_directory(self):
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select NIST MS Search Folder",
+            self.path_input.text(),
+        )
+        if directory:
+            self.path_input.setText(directory)
+
+    def check_nist(self, show_success=False):
+        nist_path = Path(self.path_input.text().strip())
+        if not nist_path.is_dir():
+            QMessageBox.warning(self, "NIST MS Search Path Error", "Please select a valid NIST MS Search folder.")
+            return False
+
+        if not (nist_path / "nistms$.exe").is_file():
+            QMessageBox.warning(self, "NIST MS Search Path Error", "Cannot find nistms$.exe")
+            return False
+
+        try:
+            check_autoimp_writable(nist_path)
+        except PermissionError:
+            QMessageBox.critical(
+                self,
+                "NIST MS Search Path Error",
+                "AUTOIMP.MSD write permission denied, please move or copy MS Search program to a user editable folder.",
+            )
+            return False
+        except OSError as e:
+            QMessageBox.critical(
+                self,
+                "NIST MS Search Path Error",
+                f"Could not create or write AUTOIMP.MSD:\n{e}",
+            )
+            return False
+
+        if show_success:
+            QMessageBox.information(self, "NIST MS Search Path", "NIST MS Search path is valid and AUTOIMP.MSD is writable.")
+        return True
+
+    def accept_if_valid(self):
+        if self.check_nist():
+            self.accept()
+
+    def get_path(self):
+        return Path(self.path_input.text().strip())
+
 # Create a dialog box for selecting column and order
 class SortDialog(QDialog):
     def __init__(self, parent):
@@ -449,7 +525,12 @@ class MainWindow(QMainWindow):
             spec_data_path = current_path / 'spectrum.txt' # add spectrum file to the path
             df_row = self.df.iloc[row]
             
-            search_nist_for_spectrum(df_row, spec_data_path=str(spec_data_path), nist_path=str(self.nist_path))
+            search_nist_for_spectrum(
+                df_row,
+                spec_data_path=str(spec_data_path),
+                nist_path=str(self.nist_path),
+                parent=self,
+            )
         else:            
             QMessageBox.warning(self, 'NIST MS Search path not defined', 
                              'Please define the NIST MS Search path in the Settings before searching.')
@@ -505,19 +586,9 @@ class MainWindow(QMainWindow):
                 self.plot_spectrum(current_row)
 
     def set_nist_path(self):
-    # Open a file dialog to select the NIST folder
-        nist_path = QFileDialog.getExistingDirectory(self, 'Select NIST MS Search Folder')
-        if nist_path:
-            # Save the NIST path to a config file or a variable
-            # Use pathlib to make the path compatible for different OS
-            nist_path = Path(nist_path)
-
-            # Check if nistms$.exe exist in the folder
-            file_path = nist_path / 'nistms$.exe'
-            if file_path.is_file():
-                self.nist_path = nist_path
-            else:
-                QMessageBox.warning(self, "NIST MS Search Path Error", "Cannot find nistms$.exe")
+        dialog = NISTPathDialog(self.nist_path, self)
+        if dialog.exec_():
+            self.nist_path = dialog.get_path()
 
     def add_column(self):
         if not self._check_df_exists():
