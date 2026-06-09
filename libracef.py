@@ -15,6 +15,10 @@ from pathlib import Path
 
 version = "0.4"
 
+def resource_path(filename):
+    base_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base_path / filename
+
 class PandasModel(QAbstractTableModel):
     def __init__(self, data):
         QAbstractTableModel.__init__(self)
@@ -221,7 +225,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.df = None
         self.bar_width_percent = 0.5  # Default bar width as 0.5% of canvas width
-        self.setWindowIcon(QIcon('libracef_icon.jpg'))
+        self.setWindowIcon(QIcon(str(resource_path("libracef_icon.ico"))))
         self.initUI()
         self.curent_csv_file = None
         self.nist_path = self.find_nist_ms_search_default_paths()

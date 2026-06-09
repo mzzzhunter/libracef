@@ -2,6 +2,7 @@
 *.spec
 /dist
 /build
+/build.bat
 *.txt
 *.csv
 *.ipynb
