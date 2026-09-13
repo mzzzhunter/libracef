@@ -97,14 +97,21 @@ def combine_cef_results(directory, rt_tolerance=0.1, group_similarity_threshold=
     # Sort unique_compounds by RT
     renamed_dicts.sort(key=lambda x: x['RT'])
 
-    # Rename duplcates as Peak 1, Peak 2, etc.
-    
+    column_order = ['Chemical_Name', 'Formula', 'RT', 'RI', 'RI Ref', 'CAS_Number', 'group', 'Similarity_to_Previous', 'Similarity_to_Next', 'MS_Peaks', 'File','MaxArea']
     df = pd.DataFrame(renamed_dicts)
+    if df.empty:
+        return pd.DataFrame(columns=column_order)
     
-    # Remove compounds with formula containing "Si"
+    # Ignore blank entries from the comma-separated exclusion input.
     for element in exclude_elements:
-        df = df[~df['Formula'].str.contains(element, na=False)]
-    
+        element = element.strip()
+        if element:
+            df = df[~df['Formula'].str.contains(element, na=False)]
+
+    # Group assignment below uses index label 0 for the first retained row.
+    df = df.reset_index(drop=True)
+    if df.empty:
+        return pd.DataFrame(columns=column_order)
     
     # Calculate similarity to previous and next spectrum
     df['Similarity_to_Previous'] = df.apply(lambda row: calculate_similarity(row, df.iloc[df.index.get_loc(row.name) - 1] if df.index.get_loc(row.name) > 0 else None), axis=1)
@@ -134,7 +141,6 @@ def combine_cef_results(directory, rt_tolerance=0.1, group_similarity_threshold=
 
     df['RI Ref'] = ''
     # Reorder columns
-    column_order = ['Chemical_Name', 'Formula', 'RT', 'RI', 'RI Ref', 'CAS_Number', 'group', 'Similarity_to_Previous', 'Similarity_to_Next', 'MS_Peaks', 'File','MaxArea']
     df = df[column_order]
     
     return df

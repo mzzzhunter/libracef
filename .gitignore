@@ -10,3 +10,5 @@ pyqt5mime.py
 !requirements.txt
 /__pycache__
 /.ipynb_checkpoints
+/tests
+*.pyc

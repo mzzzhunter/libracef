@@ -232,7 +232,7 @@ class MainWindow(QMainWindow):
         self.undo_stack = []
 
     def initUI(self):
-        self.setWindowTitle('LibraCEF - Build MS library from CEFs')
+        self.setWindowTitle('LibraCEF - Build MS library from CEFs[*]')
         self.setGeometry(100, 100, 1200, 600)
 
         main_layout = QHBoxLayout()
@@ -356,49 +356,84 @@ class MainWindow(QMainWindow):
         if self.df is not None and self.curent_csv_file is not None:
             try:
                 self.df.to_csv(self.curent_csv_file, index=False)
-                # QMessageBox.information(self, "Save Successful", f"Data saved to {self.current_file}")
+                self.setWindowModified(False)
+                return True
             except Exception as e:
                 QMessageBox.warning(self, "Save Error", f"Failed to save file: {str(e)}")
-                print(f"Error saving file: {str(e)}")
         elif self.df is not None:
-            QMessageBox.warning(self, "Save Error", "No file loaded. Please load a file first.")
+            return self.export_to_csv()
         else:
             QMessageBox.warning(self, "Save Error", "No data to save.")
+        return False
+
+    def confirm_unsaved_changes(self):
+        if not self.isWindowModified():
+            return True
+        choice = QMessageBox.question(
+            self, 'Unsaved Changes', 'Save changes to the current dataset?',
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Cancel)
+        if choice == QMessageBox.Save:
+            return self.save_csv()
+        return choice == QMessageBox.Discard
+
+    def closeEvent(self, event):
+        if self.confirm_unsaved_changes():
+            event.accept()
+        else:
+            event.ignore()
+
+    def replace_dataset(self, data, file_name=None):
+        self.df = data
+        self.curent_csv_file = file_name
+        self.undo_stack.clear()
+        self.set_window_title(file_name or 'Untitled')
+        self.update_table()
+        self.canvas.axes.clear()
+        self.canvas.draw()
+        self.import_save_action.setEnabled(True)
+        self.export_csv_action.setEnabled(True)
+        self.setWindowModified(file_name is None)
 
     def import_csv(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open CSV File", "", "CSV Files (*.csv)")
 
         if file_name:
-            self.df = pd.read_csv(file_name, keep_default_na=False)
-            self.update_table()
-            # Update the window title with the file name
-            self.curent_csv_file = file_name
-            self.set_window_title(file_name)
-            self.import_save_action.setEnabled(True)
-            self.export_csv_action.setEnabled(True)
+            if not self.confirm_unsaved_changes():
+                return
+            try:
+                data = pd.read_csv(file_name, keep_default_na=False)
+            except Exception as e:
+                QMessageBox.warning(self, 'Import Error', f'Could not import CSV file: {e}')
+                return
+            self.replace_dataset(data, file_name)
 
     def import_cef(self):
         dialog = CEFImportDialog(self)
         if dialog.exec_():
             directory, rt_tolerance, group_similarity_threshold, exclude_elements = dialog.get_values()
             if directory:
+                if not self.confirm_unsaved_changes():
+                    return
                 try:
-                    self.df = combine_cef_results(directory, rt_tolerance=rt_tolerance, 
+                    data = combine_cef_results(directory, rt_tolerance=rt_tolerance,
                                                 group_similarity_threshold=group_similarity_threshold,
                                                 exclude_elements=exclude_elements)
-                    self.update_table()
-                    # self.import_save_action.setEnabled(True)
-                    self.export_csv_action.setEnabled(True)
-                except:
-                    QMessageBox.warning(self, "Import Error", "Error when import CEF files.")
+                except Exception as e:
+                    QMessageBox.warning(self, "Import Error", f"Could not import CEF files: {e}")
+                    return
+                self.replace_dataset(data)
 
             else:
                 QMessageBox.warning(self, "Import Error", "Please select a valid directory.")
 
-    def update_table(self):
+    def update_table(self, modified=False):
         if self.df is not None:
             model = PandasModel(self.df)
+            model.dataChanged.connect(lambda *_: self.setWindowModified(True))
             self.table.setModel(model)
+            if modified:
+                self.setWindowModified(True)
             # show the number of rows and columns in the status bar
             rows, cols = self.df.shape
             self.status_label.setText(f"DataFrame updated: {rows} rows, {cols} columns")
@@ -491,7 +526,7 @@ class MainWindow(QMainWindow):
         new_row =  self.df.iloc[selected_row].copy()
         new_row['Chemical_Name'] = "New Compound"
         self.df = pd.concat([self.df.iloc[:selected_row], pd.DataFrame([new_row]), self.df.iloc[selected_row:]]).reset_index(drop=True)
-        self.update_table()
+        self.update_table(modified=True)
 
 
     def delete_selected_rows(self):
@@ -514,12 +549,12 @@ class MainWindow(QMainWindow):
             for row in selected_rows:
                 self.df = self.df.drop(self.df.index[row])
             self.df = self.df.reset_index(drop=True)
-            self.update_table()
+            self.update_table(modified=True)
 
     def undo_changes(self):
         if self.undo_stack:
             self.df = self.undo_stack.pop()
-            self.update_table()
+            self.update_table(modified=True)
 
     def search_nist(self, row):
         if self.df is None:
@@ -543,15 +578,22 @@ class MainWindow(QMainWindow):
     def export_to_csv(self):
         if self.df is None:
             QMessageBox.warning(self, "Export Error", "No data to export.")
-            return
+            return False
 
         file_name, _ = QFileDialog.getSaveFileName(self, "Save CSV File", "", "CSV Files (*.csv)")
         if file_name:
-            self.df.to_csv(file_name, index=False)
+            try:
+                self.df.to_csv(file_name, index=False)
+            except Exception as e:
+                QMessageBox.warning(self, 'Save Error', f'Failed to save file: {e}')
+                return False
             self.curent_csv_file = file_name
             self.set_window_title(file_name)
             self.import_save_action.setEnabled(True)
+            self.setWindowModified(False)
             QMessageBox.information(self, "Export Successful", f"Data exported to {file_name}")
+            return True
+        return False
 
     def export_to_jcamp(self):
         if self.df is None:
@@ -600,7 +642,7 @@ class MainWindow(QMainWindow):
         column_name, ok = QInputDialog.getText(self, "Add Column", "Enter new column name:")
         if ok and column_name:
             self.df[column_name] = None
-            self.update_table()
+            self.update_table(modified=True)
 
     def remove_column(self):
         if not self._check_df_exists():
@@ -609,7 +651,7 @@ class MainWindow(QMainWindow):
         column_name, ok = QInputDialog.getItem(self, "Remove Column", "Select a column to remove:", column_names, 0, False)
         if ok and column_name:
             self.df = self.df.drop(columns=[column_name])
-            self.update_table()
+            self.update_table(modified=True)
 
     def rearrange_columns(self):
         if self.df is not None:
@@ -654,7 +696,7 @@ class MainWindow(QMainWindow):
                 for row in range(column_list.count()):
                     new_column_order.append(column_list.item(row).text())
                 self.df = self.df[new_column_order]
-                self.update_table()
+                self.update_table(modified=True)
                 rearrange_dialog.close()
 
             horizontal_layout1 = QHBoxLayout()
@@ -684,7 +726,7 @@ class MainWindow(QMainWindow):
                 column_name, order = dialog.get_values()
                 
                 self.df= self.df.sort_values(by=column_name, ascending=(order == 'Ascending'))
-                self.update_table()
+                self.update_table(modified=True)
                 # # Example: show the number of rows and columns in the status bar
                 # rows, cols = self.df.shape
                 # self.status_label.setText(f"DataFrame updated: {rows} rows, {cols} columns")
@@ -696,7 +738,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Selection", "Please select a row to modify.")
             return
 
-        ms_peaks = self.df.at[selected_row, 'MS_Peaks']
+        # The table supplies a row position; sorting preserves index labels.
+        spectrum_column = self.df.columns.get_loc('MS_Peaks')
+        ms_peaks = self.df.iat[selected_row, spectrum_column]
 
         # Check if MS_Peaks is a string and convert it to a list if necessary 
         if isinstance(ms_peaks, str):
@@ -742,7 +786,8 @@ class MainWindow(QMainWindow):
                     mz = float(mz_item.text())
                     intensity = float(intensity_item.text())
                     new_ms_peaks.append((mz, intensity))
-            self.df.at[selected_row, 'MS_Peaks'] = new_ms_peaks
+            self.df.iat[selected_row, spectrum_column] = new_ms_peaks
+            self.setWindowModified(True)
             self.plot_spectrum(selected_row)
             dialog.accept()
 
@@ -764,7 +809,7 @@ class MainWindow(QMainWindow):
     def set_window_title(self, file_name):
         base_title = "LibraCEF"
         file_name = os.path.basename(file_name)
-        self.setWindowTitle(f"{base_title} - {file_name}")
+        self.setWindowTitle(f"{base_title} - {file_name}[*]")
 
     def find_nist_ms_search_default_paths(self):
 
