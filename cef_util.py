@@ -60,34 +60,20 @@ def combine_cef_results(directory, rt_tolerance=0.1, group_similarity_threshold=
     # Sort compounds by Chemical_Name and RT
     sorted_list = sorted(all_compounds, key=lambda x: (x['Chemical_Name'], x['RT']))
 
-    # Step 2: Prepare the structures to hold the unique peaks and count the duplicates
+    # Merge adjacent same-name observations within the RT tolerance, retaining
+    # the highest-area observation independently of the previous input record.
     unique_compounds = []
-    peak_counts = {}  # To keep track of peak counts for renaming
-
-    for i, current in enumerate(sorted_list):
-        if i == 0:
-            # Always add the first peak
-            unique_compounds.append(current)
-            
-        else:
-            previous = sorted_list[i - 1]
-            
-            # Check if the current peak is not a duplicate based on name and RT difference
-            if current['Chemical_Name'] != previous['Chemical_Name'] or abs(current['RT'] - previous['RT']) >= rt_tolerance:
-                # It's not a duplicate or it has RT difference greater than the tolerance
-                unique_compounds.append(current)
-
-            # If it is a duplicate based on name and RT difference
-            elif current['Chemical_Name'] == previous['Chemical_Name']:
-                # Update MaxArea, MS_Peaks, and File if MaxArea is greater
-                if current['MaxArea'] > previous['MaxArea']:
-                    previous['MaxArea'] = current['MaxArea']
-                    previous['MS_Peaks'] = current['MS_Peaks']
-                    previous['File'] = current['File']
-                    previous['RT'] = current['RT']
-                    previous['RI'] = current['RI']
-                # If the current peak is a duplicate, we skip adding it to unique_compounds
-                continue
+    previous = None
+    for current in sorted_list:
+        if (previous is None
+                or current['Chemical_Name'] != previous['Chemical_Name']
+                or abs(current['RT'] - previous['RT']) >= rt_tolerance):
+            unique_compounds.append(current.copy())
+        elif current['MaxArea'] > unique_compounds[-1]['MaxArea']:
+            retained = unique_compounds[-1]
+            for field in ('MaxArea', 'MS_Peaks', 'File', 'RT', 'RI'):
+                retained[field] = current[field]
+        previous = current
 
     # Step 3: Rename duplicates with "peak" suffix
     # Create a new list to hold renamed compounds
