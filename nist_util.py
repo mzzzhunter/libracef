@@ -11,9 +11,12 @@ def format_ms_peaks_for_nist(peaks):
     
 def create_spectrum_file(df_row, filename):
     lines = []
-    spec_peaks = format_ms_peaks_for_nist(df_row['MS_Peaks'])
+    peaks = df_row['MS_Peaks']
+    if isinstance(peaks, str):
+        peaks = ast.literal_eval(peaks.strip())
+    spec_peaks = format_ms_peaks_for_nist(peaks)
     lines.append(f"name:RT - {df_row['RT']}\n")
-    lines.append(f"num:{len(df_row['MS_Peaks'])}\n")
+    lines.append(f"num:{len(peaks)}\n")
     lines.append(spec_peaks)
     
     with open(filename, 'w') as f:

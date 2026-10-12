@@ -32,6 +32,19 @@ python libracef.py
 ```
 ## Usage:
 
+### Look up retention indices
+
+Run `python lookup_ri.py 67-56-1` to print JSON containing the mean `WAX`
+and `5MS` retention indices from NIST WebBook. Alternatively, call
+`from lookup_ri import lookup_ri` and then `lookup_ri("67-56-1")`.
+
+Only temperature-ramp and custom temperature-programme tables are included.
+WAX matches column names ending in `-WAX` (such as DB-WAX and TC-WAX), excluding
+Carbowax and suffixed variants. 5MS includes only HP-5ms and DB-5ms. Each numeric
+RI row has equal weight; missing categories return `""`. Network or page-format
+errors raise `LookupRIError`; the command reports errors to stderr and exits
+with a nonzero status. Invalid CAS formatting raises `ValueError`.
+
 ### To use the application, follow these steps:
 
 1. Copy the `Scripts\ExportCEFFile-AllBestHits-WithRI.Unknowns.script` file to the Mass Hunter Unknown Script folder. e.g. `C:\MassHunter\Scripts\Unkowns\Actions`
@@ -55,6 +68,12 @@ python libracef.py
 >>![alt text](image-1.png)
 
 7. Curate the compound list table by edit each row if needed by modifying the cells or deleting rows.
+
+   To remove blank contaminants, choose **Actions → Remove Blank Compounds**
+   and select one or more blank CEF files. Compounds match by CAS number when
+   both entries have one, otherwise by name (ignoring case, surrounding spaces,
+   and generated “peak 2” suffixes). Retention time is not required to match.
+   The action reports how many rows were removed and can be reversed with Undo.
 
 8. Export to Agilent MSLibrary XML by select Export->Export to MSLibrary XML
 

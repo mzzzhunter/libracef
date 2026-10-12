@@ -1,4 +1,6 @@
 import sys
+import math
+import json
 import pandas as pd
 import matplotlib.pyplot as plt
 from PyQt5.QtGui import QIcon, QKeySequence
@@ -8,16 +10,22 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from nist_util import check_autoimp_writable, search_nist_for_spectrum
 from export_util import create_jcamp_library, create_mslibrary_xml
-from cef_util import combine_cef_results
+from cef_util import combine_cef_results, parse_cef_file, blank_compound_mask
 import ast
 import os
 from pathlib import Path
 
-version = "0.4"
+version = "0.4.1"
 
 def resource_path(filename):
     base_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
     return base_path / filename
+
+
+def nist_config_path():
+    # PyInstaller's resource directory is temporary; persist beside the app.
+    app_path = Path(sys.executable) if getattr(sys, 'frozen', False) else Path(__file__)
+    return app_path.resolve().parent / 'nist_config.json'
 
 class PandasModel(QAbstractTableModel):
     def __init__(self, data):
@@ -35,19 +43,40 @@ class PandasModel(QAbstractTableModel):
         if index.isValid():
             if role == Qt.DisplayRole or role == Qt.EditRole:
                 value = self._data.iloc[index.row(), index.column()]
-                if isinstance(value, float):
+                if role == Qt.DisplayRole and isinstance(value, float):
                     decimal_places = self._decimal_places.get(index.column(), 2)
                     return f"{value:.{decimal_places}f}"
                 return str(value)
         return None
 
     def setData(self, index, value, role):
-        if role == Qt.EditRole:
+        if role == Qt.EditRole and index.isValid():
             try:
-                self._data.iloc[index.row(), index.column()] = value
+                column = self._data.columns[index.column()]
+                dtype = self._data.dtypes.iloc[index.column()]
+                continuous = column in {
+                    'RT', 'RI', 'MaxArea', 'Similarity_to_Previous', 'Similarity_to_Next'}
+                if continuous or pd.api.types.is_numeric_dtype(dtype):
+                    value = pd.to_numeric(value, errors='raise')
+                    if not math.isfinite(value):
+                        return False
+                    if continuous:
+                        # CSV inference can give RT/RI integer dtypes. Convert a
+                        # copy so validation failures cannot partly change data.
+                        values = self._data.iloc[:, index.column()].astype(float)
+                        values.iloc[index.row()] = float(value)
+                        self._data.isetitem(index.column(), values)
+                    else:
+                        if pd.api.types.is_integer_dtype(dtype):
+                            if value % 1 != 0:
+                                return False
+                            value = int(value)
+                        self._data.iat[index.row(), index.column()] = value
+                else:
+                    self._data.iat[index.row(), index.column()] = value
                 self.dataChanged.emit(index, index)
                 return True
-            except ValueError:
+            except (ValueError, TypeError, OverflowError):
                 return False
         return False
 
@@ -143,7 +172,7 @@ class NISTPathDialog(QDialog):
         check_button.clicked.connect(lambda: self.check_nist(show_success=True))
         layout.addWidget(check_button)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self.accept_if_valid)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -190,6 +219,14 @@ class NISTPathDialog(QDialog):
 
     def accept_if_valid(self):
         if self.check_nist():
+            try:
+                nist_config_path().write_text(
+                    json.dumps({'nist_path': str(self.get_path().resolve())}, indent=2) + '\n',
+                    encoding='utf-8')
+            except OSError as e:
+                QMessageBox.critical(self, 'NIST Configuration Error',
+                                     f'Could not save NIST configuration:\n{e}')
+                return
             self.accept()
 
     def get_path(self):
@@ -228,7 +265,7 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(resource_path("libracef_icon.ico"))))
         self.initUI()
         self.curent_csv_file = None
-        self.nist_path = self.find_nist_ms_search_default_paths()
+        self.nist_path = self.load_nist_path()
         self.undo_stack = []
 
     def initUI(self):
@@ -287,6 +324,11 @@ class MainWindow(QMainWindow):
         self.export_csv_action.triggered.connect(self.export_to_csv)
         file_menu.addAction(self.export_csv_action)
         self.export_csv_action.setEnabled(False)
+
+        actions_menu = menubar.addMenu('Actions')
+        remove_blanks_action = QAction('Remove Blank Compounds', self)
+        remove_blanks_action.triggered.connect(self.remove_blank_compounds)
+        actions_menu.addAction(remove_blanks_action)
 
         # Add Export menu
         export_menu = menubar.addMenu('Export')
@@ -426,6 +468,33 @@ class MainWindow(QMainWindow):
 
             else:
                 QMessageBox.warning(self, "Import Error", "Please select a valid directory.")
+
+    def remove_blank_compounds(self):
+        if self.df is None or self.df.empty:
+            QMessageBox.information(self, 'Remove Blank Compounds', 'No compounds to remove.')
+            return
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, 'Select Blank CEF Files', '', 'CEF Files (*.cef);;All Files (*)')
+        if not paths:
+            return
+        try:
+            blanks = []
+            for path in paths:
+                blanks.extend(parse_cef_file(path))
+            matches = blank_compound_mask(self.df, blanks)
+        except Exception as error:
+            QMessageBox.warning(self, 'Remove Blank Compounds',
+                                f'Could not read blank CEF files: {error}')
+            return
+        count = int(matches.sum())
+        if count:
+            self.undo_stack.append(self.df.copy())
+            self.df = self.df.loc[~matches].reset_index(drop=True)
+            self.update_table(modified=True)
+            self.canvas.axes.clear()
+            self.canvas.draw()
+        QMessageBox.information(self, 'Remove Blank Compounds',
+                                f'Removed {count} compound(s) matching the selected blank CEF files.')
 
     def update_table(self, modified=False):
         if self.df is not None:
@@ -635,6 +704,17 @@ class MainWindow(QMainWindow):
         dialog = NISTPathDialog(self.nist_path, self)
         if dialog.exec_():
             self.nist_path = dialog.get_path()
+
+    def load_nist_path(self):
+        try:
+            config = json.loads(nist_config_path().read_text(encoding='utf-8'))
+            if isinstance(config, dict):
+                saved_path = config.get('nist_path')
+                if isinstance(saved_path, str) and saved_path.strip():
+                    return Path(saved_path.strip())
+        except (OSError, ValueError):
+            pass
+        return self.find_nist_ms_search_default_paths()
 
     def add_column(self):
         if not self._check_df_exists():

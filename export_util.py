@@ -32,7 +32,6 @@ def create_jcamp_library(df):
 ##MINX=0
 ##MAXY=999
 ##MINY=0
-##MW={row['RT']}
 ##NPOINTS={len(row['MS_Peaks'])}
 ##PEAK TABLE=(XY..XY)
 """     

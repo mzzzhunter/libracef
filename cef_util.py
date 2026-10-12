@@ -1,6 +1,7 @@
 import pandas as pd
 import xml.etree.ElementTree as ET
 import os
+import re
 import numpy as np
 from scipy.spatial.distance import cosine
 
@@ -49,6 +50,37 @@ def parse_cef_file(file_path):
         compounds.append(compound_data)
 
     return compounds
+
+def blank_compound_mask(data, blank_compounds):
+    """Match CAS when both records have one, otherwise match nonempty names."""
+    def text(value):
+        return '' if pd.isna(value) else str(value).strip()
+
+    def name(value):
+        return re.sub(r'\s+peak\s+(?:[2-9]|[1-9]\d+)$', '', text(value).casefold())
+
+    blank_cas = set()
+    blank_names = set()
+    names_without_cas = set()
+    for compound in blank_compounds:
+        cas = text(compound.get('CAS_Number'))
+        chemical_name = name(compound.get('Chemical_Name'))
+        if cas:
+            blank_cas.add(cas)
+        if chemical_name:
+            blank_names.add(chemical_name)
+            if not cas:
+                names_without_cas.add(chemical_name)
+
+    matches = []
+    for _, compound in data.iterrows():
+        cas = text(compound.get('CAS_Number'))
+        chemical_name = name(compound.get('Chemical_Name'))
+        matches.append(bool(cas and cas in blank_cas) or
+                       bool(chemical_name) and chemical_name in
+                       (names_without_cas if cas else blank_names))
+    return pd.Series(matches, index=data.index, dtype=bool)
+
 
 def combine_cef_results(directory, rt_tolerance=0.1, group_similarity_threshold=0.9, exclude_elements=['Si']):
     all_compounds = []
